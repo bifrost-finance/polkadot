@@ -251,6 +251,28 @@ impl<T: Config> Module<T> {
 	}
 }
 
+impl<T: Config> crate::slots::Registrar<T::AccountId> for Module<T> {
+	fn new_id() -> ParaId {
+		100u32.into()
+	}
+
+	fn head_data_size_allowed(_head_data_size: u32) -> bool {
+		true
+	}
+
+	fn code_size_allowed(_code_size: u32) -> bool {
+		true
+	}
+
+	fn register_para(id: ParaId, _parachain: bool, code: ValidationCode, initial_head_data: HeadData) -> DispatchResult {
+		Self::register_parachain(id, initial_head_data, code)
+	}
+
+	fn deregister_para(id: ParaId) -> DispatchResult {
+		Self::deregister_parachain(id)
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

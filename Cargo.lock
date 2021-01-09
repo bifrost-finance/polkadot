@@ -6516,6 +6516,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-offences",
+ "pallet-randomness-collective-flip",
  "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
