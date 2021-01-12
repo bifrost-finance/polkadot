@@ -644,7 +644,7 @@ impl crowdloan::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EndingPeriod: BlockNumber = 10 * DAYS;
+	pub const EndingPeriod: BlockNumber = 30 * MINUTES;
 	pub const LeasePeriod: BlockNumber = 3 * DAYS;
 }
 
