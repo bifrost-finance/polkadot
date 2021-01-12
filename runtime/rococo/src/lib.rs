@@ -65,7 +65,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use frame_system::EnsureRoot;
-use runtime_common::{paras_sudo_wrapper, paras_registrar, crowdfund, slots};
+use runtime_common::{paras_sudo_wrapper, paras_registrar, crowdloan, slots};
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
@@ -210,7 +210,7 @@ construct_runtime! {
 		// Sudo
 		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>},
 
-		Crowdfund: crowdfund::{Module, Call, Storage, Event<T>},
+		Crowdloan: crowdloan::{Module, Call, Storage, Event<T>},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 	}
 }
@@ -630,15 +630,17 @@ parameter_types! {
 	pub const MinContribution: Balance = 10 * DOLLARS;
 	pub const RetirementPeriod: BlockNumber = 5 * DAYS;
 	pub const CrowdfundModuleId: ModuleId = ModuleId(*b"py/cfund");
+	pub const RemoveKeysLimit: u32 = 10;
 }
 
-impl crowdfund::Config for Runtime {
+impl crowdloan::Config for Runtime {
 	type Event = Event;
 	type ModuleId = CrowdfundModuleId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
 	type RetirementPeriod = RetirementPeriod;
 	type OrphanedFunds = ();
+	type RemoveKeysLimit = RemoveKeysLimit;
 }
 
 parameter_types! {
