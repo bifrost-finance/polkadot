@@ -133,16 +133,16 @@ impl Decode for BEBlockNumber {
 #[derive(Debug, Encode, Decode)]
 enum State {
 	/// Candidate data was first observed at the given time but is not available in any block.
-	#[codec(index = "0")]
+	#[codec(index = 0)]
 	Unavailable(BETimestamp),
 	/// The candidate was first observed at the given time and was included in the given list of unfinalized blocks, which may be
 	/// empty. The timestamp here is not used for pruning. Either one of these blocks will be finalized or the state will regress to
 	/// `State::Unavailable`, in which case the same timestamp will be reused. Blocks are sorted ascending first by block number and
 	/// then hash.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Unfinalized(BETimestamp, Vec<(BEBlockNumber, Hash)>),
 	/// Candidate data has appeared in a finalized block and did so at the given time.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Finalized(BETimestamp)
 }
 
@@ -641,7 +641,7 @@ async fn process_block_activated(
 
 	for event in candidate_events {
 		match event {
-			CandidateEvent::CandidateBacked(receipt, _head) => {
+			CandidateEvent::CandidateBacked(receipt, _head, _core_index, _group_index) => {
 				note_block_backed(
 					&subsystem.db,
 					&mut tx,
@@ -651,7 +651,7 @@ async fn process_block_activated(
 					receipt,
 				)?;
 			}
-			CandidateEvent::CandidateIncluded(receipt, _head) => {
+			CandidateEvent::CandidateIncluded(receipt, _head, _core_index, _group_index) => {
 				note_block_included(
 					&subsystem.db,
 					&mut tx,
@@ -967,7 +967,9 @@ fn process_message(
 		}
 		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
 			let a = load_meta(&subsystem.db, &candidate)?
-				.map_or(false, |m| *m.chunks_stored.get(validator_index as usize).unwrap_or(&false));
+				.map_or(false, |m|
+					*m.chunks_stored.get(validator_index.0 as usize).as_deref().unwrap_or(&false)
+				);
 			let _ = tx.send(a);
 		}
 		AvailabilityStoreMessage::StoreChunk {
@@ -1032,10 +1034,10 @@ fn store_chunk(
 		None => return Ok(false), // we weren't informed of this candidate by import events.
 	};
 
-	match meta.chunks_stored.get(chunk.index as usize).map(|b| *b) {
+	match meta.chunks_stored.get(chunk.index.0 as usize).map(|b| *b) {
 		Some(true) => return Ok(true), // already stored.
 		Some(false) => {
-			meta.chunks_stored.set(chunk.index as usize, true);
+			meta.chunks_stored.set(chunk.index.0 as usize, true);
 
 			write_chunk(&mut tx, &candidate_hash, chunk.index, &chunk);
 			write_meta(&mut tx, &candidate_hash, &meta);
@@ -1088,7 +1090,7 @@ fn store_available_data(
 		.map(|(index, (chunk, proof))| ErasureChunk {
 			chunk: chunk.clone(),
 			proof,
-			index: index as u32,
+			index: ValidatorIndex(index as u32),
 		});
 
 	for chunk in erasure_chunks {
@@ -1102,6 +1104,13 @@ fn store_available_data(
 	write_available_data(&mut tx, &candidate_hash, &available_data);
 
 	subsystem.db.write(tx)?;
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		"Stored data and chunks for candidate={}",
+		candidate_hash,
+	);
+
 	Ok(())
 }
 
@@ -1133,7 +1142,7 @@ fn prune_all(db: &Arc<dyn KeyValueDB>, clock: &dyn Clock) -> Result<(), Error> {
 			// delete chunks.
 			for (i, b) in meta.chunks_stored.iter().enumerate() {
 				if *b {
-					delete_chunk(&mut tx, &candidate_hash, i as _);
+					delete_chunk(&mut tx, &candidate_hash, ValidatorIndex(i as _));
 				}
 			}
 

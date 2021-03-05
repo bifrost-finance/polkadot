@@ -32,7 +32,7 @@ Output:
 This network bridge sends messages of these types over the network.
 
 ```rust
-enum ProtocolMessage<M> {
+enum WireMessage<M> {
 	ProtocolMessage(M),
 	ViewUpdate(View),
 }
@@ -41,8 +41,8 @@ enum ProtocolMessage<M> {
 and instantiates this type twice, once using the [`ValidationProtocolV1`][VP1] message type, and once with the [`CollationProtocolV1`][CP1] message type.
 
 ```rust
-type ValidationV1Message = ProtocolMessage<ValidationProtocolV1>;
-type CollationV1Message = ProtocolMessage<CollationProtocolV1>;
+type ValidationV1Message = WireMessage<ValidationProtocolV1>;
+type CollationV1Message = WireMessage<CollationProtocolV1>;
 ```
 
 ### Startup
@@ -67,7 +67,7 @@ We update our view's `finalized_number` to the provided one and delay `ProtocolM
 
 ### Network Event: Peer Connected
 
-Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer.
+Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer. Also issue a `NetworkBridgeEvent::PeerViewChange` and send the peer our current view.
 
 ### Network Event: Peer Disconnected
 

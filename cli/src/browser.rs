@@ -14,28 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
+use browser_utils::{browser_configuration, init_logging_and_telemetry, set_console_error_panic_hook, Client};
 use log::info;
 use wasm_bindgen::prelude::*;
-use browser_utils::{
-	Client,
-	browser_configuration, set_console_error_panic_hook, init_console_log,
-};
 
 /// Starts the client.
 #[wasm_bindgen]
 pub async fn start_client(chain_spec: String, log_level: String) -> Result<Client, JsValue> {
-	start_inner(chain_spec, log_level)
-		.await
-		.map_err(|err| JsValue::from_str(&err.to_string()))
+	start_inner(chain_spec, log_level).await.map_err(|err| JsValue::from_str(&err.to_string()))
 }
 
-async fn start_inner(chain_spec: String, log_level: String) -> Result<Client, Box<dyn std::error::Error>> {
+async fn start_inner(chain_spec: String, log_directives: String) -> Result<Client, Box<dyn std::error::Error>> {
 	set_console_error_panic_hook();
-	init_console_log(log_level.parse()?)?;
+	let telemetry_worker = init_logging_and_telemetry(&log_directives)?;
 
-	let chain_spec = service::PolkadotChainSpec::from_json_bytes(chain_spec.as_bytes().to_vec())
-		.map_err(|e| format!("{:?}", e))?;
-	let config = browser_configuration(chain_spec).await?;
+	let chain_spec =
+		service::PolkadotChainSpec::from_json_bytes(chain_spec.as_bytes().to_vec()).map_err(|e| format!("{:?}", e))?;
+	let telemetry_handle = telemetry_worker.handle();
+	let config = browser_configuration(chain_spec, Some(telemetry_handle)).await?;
 
 	info!("Polkadot browser node");
 	info!("  version {}", config.impl_version);
@@ -45,7 +41,9 @@ async fn start_inner(chain_spec: String, log_level: String) -> Result<Client, Bo
 	info!("👤 Role: {}", config.display_role());
 
 	// Create the service. This is the most heavy initialization step.
-	let (task_manager, rpc_handlers) = service::build_light(config).map_err(|e| format!("{:?}", e))?;
+	let (task_manager, rpc_handlers, _) = service::build_light(config).map_err(|e| format!("{:?}", e))?;
+
+	task_manager.spawn_handle().spawn("telemetry", telemetry_worker.run());
 
 	Ok(browser_utils::start_client(task_manager, rpc_handlers))
 }

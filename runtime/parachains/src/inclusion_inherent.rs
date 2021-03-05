@@ -107,7 +107,9 @@ decl_module! {
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
+			let expected_bits = <scheduler::Module<T>>::availability_cores().len();
 			let freed_concluded = <inclusion::Module<T>>::process_bitfields(
+				expected_bits,
 				signed_bitfields,
 				<scheduler::Module<T>>::core_para,
 			)?;
@@ -124,7 +126,11 @@ decl_module! {
 			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)));
 
-			<scheduler::Module<T>>::schedule(freed);
+			<scheduler::Module<T>>::clear();
+			<scheduler::Module<T>>::schedule(
+				freed,
+				<frame_system::Module<T>>::block_number(),
+			);
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
@@ -165,8 +171,29 @@ decl_module! {
 /// This is somewhat less desirable than attempting to fit some of them, but is more fair in the
 /// even that we can't trust the provisioner to provide a fair / random ordering of candidates.
 fn limit_backed_candidates<T: Config>(
-	backed_candidates: Vec<BackedCandidate<T::Hash>>,
+	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 ) -> Vec<BackedCandidate<T::Hash>> {
+	const MAX_CODE_UPGRADES: usize = 1;
+
+	// Ignore any candidates beyond one that contain code upgrades.
+	//
+	// This is an artificial limitation that does not appear in the guide as it is a practical
+	// concern around execution.
+	{
+		let mut code_upgrades = 0;
+		backed_candidates.retain(|c| {
+			if c.candidate.commitments.new_validation_code.is_some() {
+				if code_upgrades >= MAX_CODE_UPGRADES {
+					return false
+				}
+
+				code_upgrades +=1;
+			}
+
+			true
+		});
+	}
+
 	// the weight of the inclusion inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
 	if frame_system::Module::<T>::block_weight().total() > <T as frame_system::Config>::BlockWeights::get().max_block {
@@ -192,18 +219,24 @@ impl<T: Config> ProvideInherent for Module<T> {
 				)| {
 					// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 					// See github.com/paritytech/polkadot/issues/1327
-					if Self::inclusion(
+					let (signed_bitfields, backed_candidates) = match Self::inclusion(
 						frame_system::RawOrigin::None.into(),
 						signed_bitfields.clone(),
 						backed_candidates.clone(),
 						parent_header.clone(),
-					)
-					.is_ok()
-					{
-						Call::inclusion(signed_bitfields, backed_candidates, parent_header)
-					} else {
-						Call::inclusion(Vec::new().into(), Vec::new(), parent_header)
-					}
+					) {
+						Ok(_) => (signed_bitfields, backed_candidates),
+						Err(err) => {
+							log::warn!(
+								target: "runtime_inclusion_inherent",
+								"dropping signed_bitfields and backed_candidates because they produced \
+								an invalid inclusion inherent: {:?}",
+								err,
+							);
+							(Vec::new().into(), Vec::new())
+						}
+					};
+					Call::inclusion(signed_bitfields, backed_candidates, parent_header)
 				}
 			)
 	}
@@ -214,7 +247,7 @@ mod tests {
 	use super::*;
 
 	use crate::mock::{
-		new_test_ext, System, GenesisConfig as MockGenesisConfig, Test
+		new_test_ext, System, MockGenesisConfig, Test
 	};
 
 	mod limit_backed_candidates {
@@ -261,13 +294,23 @@ mod tests {
 				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
 			});
 		}
+
+		#[test]
+		fn ignores_subsequent_code_upgrades() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let mut backed = BackedCandidate::default();
+				backed.candidate.commitments.new_validation_code = Some(Vec::new().into());
+				let backed_candidates = (0..3).map(|_| backed.clone()).collect();
+				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
+			});
+		}
 	}
 
 	mod inclusion_inherent_weight {
 		use super::*;
 
 		use crate::mock::{
-			new_test_ext, System, GenesisConfig as MockGenesisConfig, Test
+			new_test_ext, System, MockGenesisConfig, Test
 		};
 
 		use frame_support::traits::UnfilteredDispatchable;

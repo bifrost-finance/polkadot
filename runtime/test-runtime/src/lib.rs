@@ -26,6 +26,7 @@ use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::Encode;
 
 use polkadot_runtime_parachains::configuration as parachains_configuration;
+use polkadot_runtime_parachains::shared as parachains_shared;
 use polkadot_runtime_parachains::inclusion as parachains_inclusion;
 use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use polkadot_runtime_parachains::initializer as parachains_initializer;
@@ -40,7 +41,7 @@ use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo as SessionInfoData,
 };
 use runtime_common::{
@@ -65,13 +66,9 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
-use frame_support::{
-	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, Randomness},
-	weights::Weight,
-};
+use frame_support::{parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Randomness}, weights::Weight};
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 
@@ -309,6 +306,13 @@ parameter_types! {
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
+impl sp_election_providers::onchain::Config for Runtime {
+	type AccountId = <Self as frame_system::Config>::AccountId;
+	type BlockNumber = <Self as frame_system::Config>::BlockNumber;
+	type Accuracy = sp_runtime::Perbill;
+	type DataProvider = pallet_staking::Module<Self>;
+}
+
 impl pallet_staking::Config for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
@@ -332,6 +336,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxIterations = MaxIterations;
 	type OffchainSolutionWeightLimit = ();
 	type MinSolutionScoreBump = MinSolutionScoreBump;
+	type ElectionProvider = sp_election_providers::onchain::OnChainSequentialPhragmen<Self>;
 	type WeightInfo = ();
 
 }
@@ -383,7 +388,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			debug::warn!("Unable to create signed payload: {:?}", e);
+			log::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
 		let signature = raw_payload.using_encoded(|payload| {
 			C::sign(payload, public)
@@ -448,6 +453,8 @@ impl pallet_sudo::Config for Runtime {
 
 impl parachains_configuration::Config for Runtime {}
 
+impl parachains_shared::Config for Runtime {}
+
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
@@ -456,7 +463,7 @@ impl parachains_inclusion::Config for Runtime {
 impl parachains_inclusion_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
-	type Randomness = RandomnessCollectiveFlip;
+	type Randomness = Babe;
 }
 
 impl parachains_session_info::Config for Runtime {}
@@ -472,7 +479,9 @@ impl parachains_ump::Config for Runtime {
 }
 
 impl parachains_hrmp::Config for Runtime {
+	type Event = Event;
 	type Origin = Origin;
+	type Currency = Balances;
 }
 
 impl parachains_scheduler::Config for Runtime {}
@@ -490,7 +499,7 @@ construct_runtime! {
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage},
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, Inherent},
+		Babe: pallet_babe::{Module, Call, Storage, Config},
 
 		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
 		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>},
@@ -521,13 +530,14 @@ construct_runtime! {
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 		SessionInfo: parachains_session_info::{Module, Call, Storage},
+		Hrmp: parachains_hrmp::{Module, Call, Storage, Event},
 
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 }
 
 /// The address format for describing accounts.
-pub type Address = <Indices as StaticLookup>::Source;
+pub type Address = sp_runtime::MultiAddress<AccountId, AccountIndex>;
 /// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
@@ -565,7 +575,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn execute_block(block: Block) {
-			Executive::execute_block(block)
+			Executive::execute_block(block);
 		}
 
 		fn initialize_block(header: &<Block as BlockT>::Header) {
@@ -636,12 +646,6 @@ sp_api::impl_runtime_apis! {
 
 		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			runtime_impl::availability_cores::<Runtime>()
-		}
-
-		fn full_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>>
-		{
-			runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
 		}
 
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
@@ -736,11 +740,11 @@ sp_api::impl_runtime_apis! {
 				c: PRIMARY_PROBABILITY,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 			}
 		}
 
-		fn current_epoch_start() -> babe_primitives::SlotNumber {
+		fn current_epoch_start() -> babe_primitives::Slot {
 			Babe::current_epoch_start()
 		}
 
@@ -753,7 +757,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn generate_key_ownership_proof(
-			_slot_number: babe_primitives::SlotNumber,
+			_slot: babe_primitives::Slot,
 			_authority_id: babe_primitives::AuthorityId,
 		) -> Option<babe_primitives::OpaqueKeyOwnershipProof> {
 			None
@@ -791,6 +795,9 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_fee_details(uxt, len)
 		}
 	}
 

@@ -856,7 +856,6 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		pallet_staking: Some(Default::default()),
 		pallet_sudo: Some(rococo_runtime::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		}),
@@ -871,7 +870,34 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				group_rotation_frequency: 20,
 				chain_availability_period: 4,
 				thread_availability_period: 4,
-				no_show_slots: 10,
+				max_upward_queue_count: 8,
+				max_upward_queue_size: 8 * 1024,
+				max_downward_message_size: 1024,
+				// this is approximatelly 4ms.
+				//
+				// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
+				// an import since that's a made up number and should be replaced with a constant
+				// obtained by benchmarking anyway.
+				preferred_dispatchable_upward_messages_step_weight: 4 * 1_000_000_000,
+				max_upward_message_size: 1024,
+				max_upward_message_num_per_candidate: 5,
+				hrmp_open_request_ttl: 5,
+				hrmp_sender_deposit: 0,
+				hrmp_recipient_deposit: 0,
+				hrmp_channel_max_capacity: 8,
+				hrmp_channel_max_total_size: 8 * 1024,
+				hrmp_max_parachain_inbound_channels: 4,
+				hrmp_max_parathread_inbound_channels: 4,
+				hrmp_channel_max_message_size: 1024,
+				hrmp_max_parachain_outbound_channels: 4,
+				hrmp_max_parathread_outbound_channels: 4,
+				hrmp_max_message_num_per_candidate: 5,
+				dispute_period: 6,
+				no_show_slots: 2,
+				n_delay_tranches: 25,
+				needed_approvals: 2,
+				relay_vrf_modulo_samples: 10,
+				zeroth_delay_tranche_width: 0,
 				..Default::default()
 			},
 		}),
@@ -1343,7 +1369,6 @@ pub fn rococo_testnet_genesis(
 		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		pallet_staking: Some(Default::default()),
 		pallet_sudo: Some(rococo_runtime::SudoConfig { key: root_key }),
 		parachains_configuration: Some(rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
@@ -1356,7 +1381,6 @@ pub fn rococo_testnet_genesis(
 				group_rotation_frequency: 20,
 				chain_availability_period: 4,
 				thread_availability_period: 4,
-				no_show_slots: 10,
 				max_upward_queue_count: 8,
 				max_upward_queue_size: 8 * 1024,
 				max_downward_message_size: 1024,
@@ -1379,6 +1403,12 @@ pub fn rococo_testnet_genesis(
 				hrmp_max_parachain_outbound_channels: 4,
 				hrmp_max_parathread_outbound_channels: 4,
 				hrmp_max_message_num_per_candidate: 5,
+				dispute_period: 6,
+				no_show_slots: 2,
+				n_delay_tranches: 25,
+				needed_approvals: 2,
+				relay_vrf_modulo_samples: 10,
+				zeroth_delay_tranche_width: 0,
 				..Default::default()
 			},
 		}),
