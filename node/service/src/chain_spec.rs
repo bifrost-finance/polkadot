@@ -637,6 +637,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: kusama::AuthorityDiscoveryConfig { keys: vec![] },
+		pallet_sudo: kusama::SudoConfig {
+			key: endowed_accounts[0].clone(),
+		},
 		claims: kusama::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
@@ -1285,6 +1288,9 @@ pub fn kusama_testnet_genesis(
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: kusama::AuthorityDiscoveryConfig { keys: vec![] },
+		pallet_sudo: kusama::SudoConfig {
+			key: endowed_accounts[0].clone(),
+		},
 		claims: kusama::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
