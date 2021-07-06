@@ -95,6 +95,7 @@ impl SubstrateCli for Cli {
 			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
 			#[cfg(feature = "rococo-native")]
 			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
+			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("rococo-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
 			"westend" => Box::new(service::chain_spec::westend_config()?),

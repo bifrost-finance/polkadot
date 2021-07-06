@@ -728,6 +728,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		grandpa: Default::default(),
 		im_online: Default::default(),
 		authority_discovery: kusama::AuthorityDiscoveryConfig { keys: vec![] },
+		sudo: kusama::SudoConfig {
+			key: endowed_accounts[0].clone(),
+		},
 		claims: kusama::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
@@ -1348,6 +1351,9 @@ pub fn kusama_testnet_genesis(
 		grandpa: Default::default(),
 		im_online: Default::default(),
 		authority_discovery: kusama::AuthorityDiscoveryConfig { keys: vec![] },
+		sudo: kusama::SudoConfig {
+			key: endowed_accounts[0].clone(),
+		},
 		claims: kusama::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
