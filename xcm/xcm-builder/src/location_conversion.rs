@@ -123,6 +123,25 @@ impl<
 	}
 }
 
+/// Extracts the `AccountId32` from the passed `location` which origin from parachain
+pub struct ParachainAccountId32Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
+impl<
+	Network: Get<NetworkId>,
+	AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone,
+> Convert<MultiLocation, AccountId> for ParachainAccountId32Aliases<Network, AccountId> {
+	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
+		let id = match location {
+			MultiLocation::X2(Junction::Parachain(..), Junction::AccountId32 { id, network: NetworkId::Any }) => id,
+			l => return Err(l),
+		};
+		Ok(id.into())
+	}
+
+	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
+		Ok(Junction::AccountId32 { id: who.into(), network: Network::get() }.into())
+	}
+}
+
 pub struct AccountKey20Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<
 	Network: Get<NetworkId>,

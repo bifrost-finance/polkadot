@@ -28,7 +28,7 @@ mod tests;
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, ParentIsDefault, ChildParachainConvertsVia, SiblingParachainConvertsVia, AccountId32Aliases,
-	AccountKey20Aliases, LocationInverter,
+	AccountKey20Aliases, LocationInverter,ParachainAccountId32Aliases,
 };
 
 mod origin_conversion;
@@ -41,7 +41,7 @@ pub use origin_conversion::{
 mod barriers;
 pub use barriers::{
 	TakeWeightCredit, AllowUnpaidExecutionFrom, AllowTopLevelPaidExecutionFrom, AllowKnownQueryResponses,
-	IsChildSystemParachain,
+	IsChildSystemParachain, AllowXcmTransactFrom,
 };
 
 mod currency_adapter;

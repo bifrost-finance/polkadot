@@ -356,9 +356,9 @@ pub mod pallet {
 			// There should not be an existing fund.
 			ensure!(!Funds::<T>::contains_key(index), Error::<T>::FundNotEnded);
 
-			let manager = T::Registrar::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
-			ensure!(depositor == manager, Error::<T>::InvalidOrigin);
-			ensure!(T::Registrar::is_registered(index), Error::<T>::InvalidParaId);
+			// let manager = T::Registrar::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
+			// ensure!(depositor == manager, Error::<T>::InvalidOrigin);
+			// ensure!(T::Registrar::is_registered(index), Error::<T>::InvalidParaId);
 
 			let trie_index = Self::next_trie_index();
 			let new_trie_index = trie_index.checked_add(1).ok_or(Error::<T>::Overflow)?;
@@ -496,7 +496,7 @@ pub mod pallet {
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			let now = frame_system::Pallet::<T>::block_number();
 			let fund_account = Self::fund_account_id(index);
-			Self::ensure_crowdloan_ended(now, &fund_account, &fund)?;
+			// Self::ensure_crowdloan_ended(now, &fund_account, &fund)?;
 
 			let (balance, _) = Self::contribution_get(fund.trie_index, &who);
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);

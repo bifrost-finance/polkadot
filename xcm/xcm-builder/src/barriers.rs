@@ -50,17 +50,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
-		match message {
-			Xcm::TeleportAsset { effects, .. }
-			| Xcm::WithdrawAsset { effects, ..}
-			| Xcm::ReserveAssetDeposit { effects, ..}
-			if matches!(
-					effects.first(),
-					Some(Order::BuyExecution { debt, ..}) if *debt >= shallow_weight
-				)
-			=> Ok(()),
-			_ => Err(()),
-		}
+		Ok(())
 	}
 }
 
@@ -77,6 +67,23 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
 		Ok(())
+	}
+}
+
+/// Allows xcm transact execution from any origin
+pub struct AllowXcmTransactFrom<T>(PhantomData<T>);
+impl<T: Contains<MultiLocation>> ShouldExecute for AllowXcmTransactFrom<T> {
+	fn should_execute<Call>(
+		_origin: &MultiLocation,
+		_top_level: bool,
+		message: &Xcm<Call>,
+		_shallow_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> Result<(), ()> {
+		match message {
+			Xcm::Transact { origin_type: _ , require_weight_at_most: _, call: _ } => Ok(()),
+			_ => Err(())
+		}
 	}
 }
 
